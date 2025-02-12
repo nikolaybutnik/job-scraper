@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Scrapy settings for quotes_js_scraper project
 #
@@ -9,10 +12,10 @@ import os
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
-BOT_NAME = "basic_scrapy_spider"
+BOT_NAME = "jobs_spider"
 
-SPIDER_MODULES = ["basic_scrapy_spider.spiders"]
-NEWSPIDER_MODULE = "basic_scrapy_spider.spiders"
+SPIDER_MODULES = ["jobs.spiders"]
+NEWSPIDER_MODULE = "jobs.spiders"
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
@@ -21,13 +24,13 @@ NEWSPIDER_MODULE = "basic_scrapy_spider.spiders"
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
-SCRAPEOPS_API_KEY = os.environ.get("SCRAPEOPS_API_KEY")
+# SCRAPEOPS_API_KEY = os.getenv("SCRAPEOPS_API_KEY")
 
-SCRAPEOPS_PROXY_ENABLED = True
+# SCRAPEOPS_PROXY_ENABLED = True
 
-DOWNLOADER_MIDDLEWARES = {
-    "scrapeops_scrapy_proxy_sdk.scrapeops_scrapy_proxy_sdk.ScrapeOpsScrapyProxySdk": 725,
-}
+# DOWNLOADER_MIDDLEWARES = {
+#     "scrapeops_scrapy_proxy_sdk.scrapeops_scrapy_proxy_sdk.ScrapeOpsScrapyProxySdk": 725,
+# }
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 # CONCURRENT_REQUESTS = 32
