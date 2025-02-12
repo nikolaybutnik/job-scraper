@@ -1,3 +1,5 @@
+import os
+
 # Scrapy settings for quotes_js_scraper project
 #
 # For simplicity, this file contains only settings considered important or
@@ -18,6 +20,14 @@ NEWSPIDER_MODULE = "basic_scrapy_spider.spiders"
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
+
+SCRAPEOPS_API_KEY = os.environ.get("SCRAPEOPS_API_KEY")
+
+SCRAPEOPS_PROXY_ENABLED = True
+
+DOWNLOADER_MIDDLEWARES = {
+    "scrapeops_scrapy_proxy_sdk.scrapeops_scrapy_proxy_sdk.ScrapeOpsScrapyProxySdk": 725,
+}
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 # CONCURRENT_REQUESTS = 32
