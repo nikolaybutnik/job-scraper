@@ -14,6 +14,7 @@ from crawl4ai import (
     PruningContentFilter,
 )
 from crawl4ai.extraction_strategy import JsonCssExtractionStrategy
+from utils import proxy
 
 
 async def main():
@@ -40,3 +41,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    proxy.generate_proxy_list()
