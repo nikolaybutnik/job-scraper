@@ -3,6 +3,7 @@
 # deactivate
 # pip install -r requirements.txt
 
+import os
 import asyncio
 import json
 from crawl4ai import (
@@ -15,11 +16,21 @@ from crawl4ai import (
 )
 from crawl4ai.extraction_strategy import JsonCssExtractionStrategy
 from utils import proxy
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 async def main():
-
-    browser_config = BrowserConfig(headless=False, verbose=True)
+    proxy_config = {
+        "server": os.getenv("PROXY_URL"),
+        "username": os.getenv("PROXY_USERNAME"),
+        "password": os.getenv("PROXY_PASSWORD"),
+    }
+    print(proxy_config)
+    browser_config = BrowserConfig(
+        headless=False, verbose=True, proxy_config=proxy_config
+    )
     crawler_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         process_iframes=False,
@@ -41,4 +52,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    proxy.generate_proxy_list()

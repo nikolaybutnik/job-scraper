@@ -2,6 +2,8 @@ import os
 import requests, re
 from bs4 import BeautifulSoup
 
+# TODO: Find a way to validate proxies and compile a valid list
+
 
 def clear_used_proxies():
     filename = "proxy_store/used_proxies.txt"
@@ -65,5 +67,5 @@ def get_proxy():
             proxies_list_file.writelines(available_proxies[:-1])
             proxies_list_file.truncate()
 
-            return last_proxy
+            return "http://" + last_proxy
         return None
