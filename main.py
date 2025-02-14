@@ -11,12 +11,10 @@ from crawl4ai import (
     BrowserConfig,
     CrawlerRunConfig,
     CacheMode,
-    DefaultMarkdownGenerator,
-    PruningContentFilter,
+    LLMExtractionStrategy,
 )
-from crawl4ai.extraction_strategy import JsonCssExtractionStrategy
-from utils import proxy
 from dotenv import load_dotenv
+from schemas import RawCompanyModel
 
 load_dotenv()
 
@@ -27,24 +25,40 @@ async def main():
         "username": os.getenv("PROXY_USERNAME"),
         "password": os.getenv("PROXY_PASSWORD"),
     }
-    print(proxy_config)
     browser_config = BrowserConfig(
         headless=False, verbose=True, proxy_config=proxy_config
     )
+    llm_strategy = LLMExtractionStrategy(
+        provider="openrouter/deepseek/deepseek-chat:free",
+        api_token=os.getenv("DEEPSEEK_API_KEY"),
+        schema=RawCompanyModel.schema,
+        extraction_type="schema",
+        input_format="markdown",
+        instruction="For every valid result entry extract company name, address (including street, city, province/state, and country), and website url",
+    )
     crawler_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
-        process_iframes=False,
+        extraction_strategy=llm_strategy,
+        only_text=True,
         remove_overlay_elements=True,
-        exclude_external_links=True,
+        exclude_external_images=True,
+        wait_for="div[role='feed']",
+        css_selector="div[role='feed']",
     )
 
+    lang = "hl=en&gl=CA"
+    city = "Ottawa,+ON"
+    query = f"software+company+near+{city}"
+    url = f"https://www.google.com/maps/search/{query}?{lang}"
+
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        result = await crawler.arun(
-            "https://news.ycombinator.com/jobs", config=crawler_config
-        )
+        result = await crawler.arun(url, config=crawler_config)
 
         if result.success:
             print(result.markdown)
+            print(result.extracted_content)
+
+            llm_strategy.show_usage()
         else:
             print(f"Crawl failed: {result.error_message}")
             print(f"Status code: {result.status_code}")
