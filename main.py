@@ -12,10 +12,33 @@ from crawl4ai import (
     CacheMode,
     LLMExtractionStrategy,
 )
+from crawl4ai.models import MarkdownGenerationResult
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from dotenv import load_dotenv
 from schemas import RawCompanyModel
 
 load_dotenv()
+
+
+class InterceptingMarkdownGenerator:
+    def __init__(self, original_generator: DefaultMarkdownGenerator):
+        self.original_generator = original_generator
+
+    def generate_markdown(
+        self, cleaned_html: str, **kwargs
+    ) -> MarkdownGenerationResult:
+        markdown_result = self.original_generator.generate_markdown(
+            cleaned_html, **kwargs
+        )
+
+        modified_fit_markdown = self.custom_processing(markdown_result)
+        markdown_result.fit_markdown = modified_fit_markdown
+
+        return markdown_result
+
+    def custom_processing(self, markdown_result: MarkdownGenerationResult) -> str:
+        # Implement your custom logic here
+        return "Test intercepting" + "\n" + markdown_result.raw_markdown
 
 
 async def main():
@@ -27,7 +50,7 @@ async def main():
 
             let lastHeight = 0;
             let attempts = 0;
-            const maxAttempts = 100; // Safety limit
+            const maxAttempts = 50; // Safety limit
 
             while (attempts < maxAttempts) {
                 container.scrollTo(0, container.scrollHeight);
@@ -66,15 +89,20 @@ async def main():
         input_format="markdown",
         instruction="For every entry extract company name, address (including street, city, province/state, and country), and website url. If a piece of data is missing, put None.",
     )
-    initial_crawler_config = CrawlerRunConfig(
+    original_markdown_generator = DefaultMarkdownGenerator()
+    intercepting_markdown_generator = InterceptingMarkdownGenerator(
+        original_markdown_generator
+    )
+    crawler_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         session_id=session_id,
-        extraction_strategy=llm_strategy,
+        # extraction_strategy=llm_strategy,
         only_text=True,
         remove_overlay_elements=True,
         exclude_external_images=True,
         wait_for=wait_for_scroll_finish,
         css_selector="div[role='feed']",
+        markdown_generator=intercepting_markdown_generator,
     )
 
     search_item = "software+company"
@@ -84,13 +112,17 @@ async def main():
     url = f"https://www.google.com/maps/search/{query}?{lang}"
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        result = await crawler.arun(url, config=initial_crawler_config)
+        result = await crawler.arun(url, config=crawler_config)
 
         if result.success:
-            file_path = "output/markdown.txt"
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, "w") as file:
+            raw_markdown_file_path = "output/raw_markdown.txt"
+            fit_markdown_file_path = "output/fit_markdown.txt"
+            os.makedirs(os.path.dirname(raw_markdown_file_path), exist_ok=True)
+            os.makedirs(os.path.dirname(fit_markdown_file_path), exist_ok=True)
+            with open(raw_markdown_file_path, "w") as file:
                 file.write(result.markdown)
+            with open(fit_markdown_file_path, "w") as file:
+                file.write(result.fit_markdown)
 
         # llm_strategy.show_usage()
         else:
