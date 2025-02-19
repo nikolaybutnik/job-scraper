@@ -5,7 +5,6 @@
 
 import os
 import asyncio
-import json
 from crawl4ai import (
     AsyncWebCrawler,
     BrowserConfig,
@@ -19,42 +18,36 @@ from schemas import RawCompanyModel
 load_dotenv()
 
 
-# TODO: need to find a way to wait for scrolling to finish before generating markdown
 async def main():
     session_id = "maps_results"
-    base_wait = """js:() => {
-        const resultItems = document.querySelectorAll('div[role='feed'] > div:not([class])');
-        return resultItems.length > 0;
-    }"""
-
-    js_scroll = """
-        // timeout of 5 seconds per scroll.
-        async function autoScroll(containerSelector, delay = 5000) {
+    wait_for_scroll_finish = """js:() => {
+        async function autoScroll(containerSelector) {
             const container = document.querySelector(containerSelector);
-            if (!container) {
-                console.error("Container not found:", containerSelector);
-                return;
-            }
+            if (!container) return false;
 
-            let previousHeight = 0;
+            let lastHeight = 0;
+            let attempts = 0;
+            const maxAttempts = 100; // Safety limit
 
-            while (true) {
-                const resultItems = document.querySelectorAll("div[role='feed'] > div:not([class])");
-                console.log("Result count: " + resultItems.length);
+            while (attempts < maxAttempts) {
                 container.scrollTo(0, container.scrollHeight);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise(resolve => setTimeout(resolve, 2000));  // 2 second delay
 
                 const newHeight = container.scrollHeight;
-                if (newHeight === previousHeight) {
-                    console.log("No more content is loading.");
-                    break;
+                if (newHeight === lastHeight) {
+                    console.log("Reached end of scroll");
+                    return true;
                 }
 
-                previousHeight = newHeight;
+                lastHeight = newHeight;
+                attempts++;
             }
+
+            return true;
         }
 
-        autoScroll("div[role='feed']");
+        return autoScroll("div[role='feed']");
+    }
     """
 
     proxy_config = {
@@ -71,7 +64,7 @@ async def main():
         schema=RawCompanyModel.schema,
         extraction_type="schema",
         input_format="markdown",
-        instruction="For every valid result entry extract company name, address (including street, city, province/state, and country), and website url",
+        instruction="For every entry extract company name, address (including street, city, province/state, and country), and website url. If a piece of data is missing, put None.",
     )
     initial_crawler_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
@@ -80,25 +73,26 @@ async def main():
         only_text=True,
         remove_overlay_elements=True,
         exclude_external_images=True,
-        wait_for=base_wait,
-        js_code=js_scroll,
-        # css_selector="div[role='feed']",
+        wait_for=wait_for_scroll_finish,
+        css_selector="div[role='feed']",
     )
 
+    search_item = "software+company"
     lang = "hl=en&gl=CA"
     city = "Ottawa,+ON"
-    query = f"software+company+near+{city}"
+    query = f"{search_item}+near+{city}"
     url = f"https://www.google.com/maps/search/{query}?{lang}"
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         result = await crawler.arun(url, config=initial_crawler_config)
 
         if result.success:
-            print(result.extracted_content)
-            print(result.markdown)
-            # print(result.extracted_content)
+            file_path = "output/markdown.txt"
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w") as file:
+                file.write(result.markdown)
 
-            # llm_strategy.show_usage()
+        # llm_strategy.show_usage()
         else:
             print(f"Crawl failed: {result.error_message}")
             print(f"Status code: {result.status_code}")

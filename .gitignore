@@ -175,3 +175,4 @@ cython_debug/
 
 # Others
 proxy_store
+output
