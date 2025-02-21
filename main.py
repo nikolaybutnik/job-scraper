@@ -5,6 +5,8 @@
 
 import os
 import asyncio
+import re
+from typing import Callable, List, Tuple
 from crawl4ai import (
     AsyncWebCrawler,
     BrowserConfig,
@@ -27,6 +29,7 @@ class InterceptingMarkdownGenerator:
     def generate_markdown(
         self, cleaned_html: str, **kwargs
     ) -> MarkdownGenerationResult:
+        """Generates markdown from the cleaned HTML."""
         markdown_result = self.original_generator.generate_markdown(
             cleaned_html, **kwargs
         )
@@ -36,9 +39,75 @@ class InterceptingMarkdownGenerator:
 
         return markdown_result
 
+    def apply_filter(
+        self, markdown: str, filter_func: Callable[[str], str], description: str
+    ) -> str:
+        """Applies a filter function to the markdown and handles errors."""
+
+        try:
+            return filter_func(markdown)
+        except Exception as e:
+            print(f"Error occurred while applying filter '{description}': {e}")
+            raise
+
+    def remove_special_characters(self, markdown: str) -> str:
+        return re.sub(r"[^a-zA-Z0-9(){}\[\]<>+\-.,\n /:?!_]+", "", markdown)
+
+    def transform_website_format(self, markdown: str) -> str:
+        # Handle website links wrapped in Google Maps URLs with special characters
+        return re.sub(
+            r"\[[^\]]*Website[^\]]*\]\(https?://www\.google\.com/maps/search/<([^>]+)>\)",
+            r"[Website](\1)",
+            markdown,
+            flags=re.IGNORECASE,
+        )
+
+    def remove_redundant_data(self, markdown: str) -> str:
+        # First pass: Remove unwanted patterns but preserve potential phone numbers
+        cleaned = re.sub(
+            r"(?im)^\s*\[.*?\]\(https?://www\.google\.com/maps/.*?\)\s*|"  # Google maps links
+            r"^.*Directions\b.*|"  # Directions lines
+            r"^\s*\d+\.\d+\(\d+\).*|"  # Ratings (4.8(54))
+            r"^(Open|Closed)(?![^\n]*(\+?\d{1,3}[-.\s]?)?(\(\d{3}\)|\d{3})[-.\s]?\d{3}[-.\s]?\d{4}).*|"  # Open/Closed without phone
+            r"^.*(recommend them!|excellent|Best|services\b|Online appointments).*|"
+            r"^(Rating|Hours|All filters|Results|Share).*|"
+            r"^[^\\n]*о[^\\n]*|"  # Remove special characters blocks
+            r"^\\s*[·•|]\\s*$|"  # Remove separator lines
+            r"^\\s*$",  # Remove empty lines
+            "",
+            markdown,
+            flags=re.MULTILINE,
+        )
+
+        # Second pass: Extract phone numbers with country codes and varied formats
+        cleaned = re.sub(
+            r"(?i)(Open|Closed)[^\d\+]*((\+?\d{1,3}[-.\s]?)?(\(\d{3}\)|\d{3})[-.\s]?\d{3}[-.\s]?\d{4})",
+            r"\2",
+            cleaned,
+            flags=re.MULTILINE,
+        )
+
+        # Third pass: Clean up residual characters and empty lines
+        cleaned = re.sub(r"[·•|]", " ", cleaned)  # Replace special separators
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
+
     def custom_processing(self, markdown_result: MarkdownGenerationResult) -> str:
-        # Implement your custom logic here
-        return "Test intercepting" + "\n" + markdown_result.raw_markdown
+        """Processes the markdown result by applying a series of filters."""
+        filtered_markdown = markdown_result.raw_markdown
+
+        filters: List[Tuple[Callable[[str], str], str]] = [
+            (self.transform_website_format, "Transform website format"),
+            (self.remove_redundant_data, "Remove redundant data"),
+            (self.remove_special_characters, "Remove unnecessary special characters"),
+        ]
+
+        for filter_func, description in filters:
+            filtered_markdown = self.apply_filter(
+                filtered_markdown, filter_func, description
+            )
+
+        return filtered_markdown.strip()
 
 
 async def main():
@@ -50,7 +119,7 @@ async def main():
 
             let lastHeight = 0;
             let attempts = 0;
-            const maxAttempts = 50; // Safety limit
+            const maxAttempts = 5; // Safety limit
 
             while (attempts < maxAttempts) {
                 container.scrollTo(0, container.scrollHeight);
